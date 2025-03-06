@@ -5,13 +5,13 @@ import sys
 
 # Recognize patterns from images
 def extract_rankings(image_paths):
-    ranking_pattern = re.compile(r'(\d+)\s?-\s?(.+)')
+    ranking_pattern = re.compile(r'.*?(\d{1,2})\s*[-–—]\s*(.+).*')
     rankings = {}
 
     for image_path in image_paths:
         img = Image.open(image_path)
-        text = pytesseract.image_to_boxes(img)
-        print(text)
+        # text = pytesseract.image_to_boxes(img)
+        text = pytesseract.image_to_string(img)
 
         for line in text.split('\n'):
             match = ranking_pattern.match(line.strip())
