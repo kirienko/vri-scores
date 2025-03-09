@@ -1,29 +1,41 @@
-import pytesseract
-from PIL import Image
-import re
-import sys
+import discord
+import aiohttp
+from extract import extract_rankings_from_bytes
 
-# Recognize patterns from images
-def extract_rankings(image_paths):
-    ranking_pattern = re.compile(r'.*?(\d{1,2})\s*[-–—]\s*(.+).*')
-    rankings = {}
+intents = discord.Intents.default()
+intents.message_content = True
 
-    for image_path in image_paths:
-        img = Image.open(image_path)
-        # text = pytesseract.image_to_boxes(img)
-        text = pytesseract.image_to_string(img)
+client = discord.Client(intents=intents)
 
-        for line in text.split('\n'):
-            match = ranking_pattern.match(line.strip())
-            if match:
-                rank = int(match.group(1))
-                username = match.group(2).strip()
-                rankings[rank] = username
+@client.event
+async def on_message(message):
+    # Ignore messages from bots
+    if message.author.bot:
+        return
 
-    return [f"{rank} {rankings[rank]}" for rank in sorted(rankings.keys())]
+    # If the message has attachments
+    if message.attachments:
+        images = []
+        for attachment in message.attachments:
+            if any(attachment.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg']):
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(attachment.url) as resp:
+                        if resp.status == 200:
+                            images.append(await resp.read())
 
-# Main execution
-if __name__ == "__main__":
-    image_paths = sys.argv[1:]  # Pass image paths as arguments
-    ordered_list = extract_rankings(image_paths)
-    print("\n".join(ordered_list))
+        if images:
+            rankings_all = {}
+            for img_bytes in images:
+                ranking = extract_rankings_from_bytes(img_bytes)
+                rankings_all.update(ranking)  # Assuming no rank conflicts
+
+            if rankings_all:
+                sorted_ranks = sorted(rankings_all.keys())
+                result = "\n".join(f"{rank} {rankings_all[rank]}" for rank in sorted_ranks)
+                await message.reply(f"**Ranking:**\n{result}")
+            else:
+                await message.reply("No rankings detected.")
+
+with open("token.txt", "r") as f:
+    token = f.read().strip()
+client.run(token)

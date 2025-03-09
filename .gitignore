@@ -174,3 +174,4 @@ cython_debug/
 
 # training data
 .training_data/
+token.txt
