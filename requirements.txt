@@ -1,0 +1,6 @@
+pytest
+aiohttp
+discord
+pandas
+pytesseract
+pillow
