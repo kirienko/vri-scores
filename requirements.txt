@@ -1,6 +1,7 @@
-pytest
 aiohttp
 discord
+matplotlib
 pandas
-pytesseract
 pillow
+pytesseract
+pytest

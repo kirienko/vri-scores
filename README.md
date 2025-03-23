@@ -3,7 +3,7 @@ A tool to quickly extract Virtual Regatta Inshore race results from screenshots
 
 ## Installation
 ```
-pip install pytesseract pillow
+pip install -r requirements.txt
 sudo apt-get install tesseract-ocr  # Linux
 brew install tesseract              # macOS
 ```
