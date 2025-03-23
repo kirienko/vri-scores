@@ -5,6 +5,20 @@ import sys
 import pytesseract
 from PIL import Image, ImageFilter
 
+def extract_rank_username(match_obj):
+    """
+    Given a regex match object, extract the rank and username.
+    Rank is converted to an int if it's numeric, otherwise kept as a string.
+    """
+    rank_str = match_obj.group(1)
+    username = match_obj.group(2).strip()
+    try:
+        if rank_str not in ('DSQ', 'DNF'):
+            return int(rank_str), username
+    except ValueError:
+        pass
+    return rank_str, username
+
 def parse_rankings_from_text(text):
     """
     Parse text to extract rankings.
@@ -15,9 +29,9 @@ def parse_rankings_from_text(text):
     We only keep the rank and the name, ignoring flags, times, or points.
     """
 
-    # Pattern 1: "6 - Guest_1723161531080"
+    # Pattern 1: "6 - Guest_1723161531080" or "DSQ - Guest_1723161531080" or "DNF - Guest_1723161531080"
     # ranking_pattern_dash = re.compile(r'(\d{1,2})\s*[-–—]\s*(.+)')
-    ranking_pattern_dash = re.compile(r'.*?(\d{1,2})\s*[-–—]\s*(.+).*')
+    ranking_pattern_dash = re.compile(r'.*?(\d{1,2}|DSQ|DNF)\s*[-–—]\s*(.+).*')
 
     # Pattern 2: "6. 🇫🇷 Guest_1723161531080 +00:15.2 29 pts" (or DSQ, etc.)
     # Explanation:
@@ -36,27 +50,17 @@ def parse_rankings_from_text(text):
         if not line:
             continue
 
-        # 1) Try dash pattern
-        match_dash = ranking_pattern_dash.search(line)
-        if match_dash:
-            try:
-                rank = int(match_dash.group(1))
-                username = match_dash.group(2).strip()
-                rankings[rank] = username
-                continue
-            except ValueError:
-                pass
+        match = ranking_pattern_dash.search(line)
+        if match:
+            rank, username = extract_rank_username(match)
+            rankings[rank] = username
+            continue
 
-        # 2) Try dot pattern
-        match_dot = ranking_pattern_dot.search(line)
-        if match_dot:
-            try:
-                rank = int(match_dot.group(1))
-                username = match_dot.group(2).strip()
-                rankings[rank] = username
-                continue
-            except ValueError:
-                pass
+        match = ranking_pattern_dot.search(line)
+        if match:
+            rank, username = extract_rank_username(match)
+            rankings[rank] = username
+            continue
 
         # If neither pattern matches, ignore the line or debug-print:
         # print("No match:", line)

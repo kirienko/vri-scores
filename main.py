@@ -83,7 +83,7 @@ def parse_ranking(message_content: str) -> dict:
     lines = message_content.splitlines()
     ranking = {}
     for line in lines:
-        if line.startswith("**Ranking:**"):
+        if line.startswith("Ranking:"):
             continue
         line = line.strip()
         if not line:
@@ -104,6 +104,7 @@ def calculate_total(all_races: dict) -> dict:
     Calculate total scores for each participant.
     For each race stored in all_races, if a participant did not start (DNS),
     substitute DNS with (number of participants across all races + 1) and sum across races.
+    DSQ and DNF are equal ti the number of actual finishers in a race + 1.
     """
     # Determine the full set of participants across all races
     all_participants = set()
@@ -114,7 +115,12 @@ def calculate_total(all_races: dict) -> dict:
     for participant in all_participants:
         total = 0
         for race in all_races.values():
-            total += race.get(participant, dns)
+            dsq = len([v for v in race.values() if isinstance(v, int)]) + 1
+            result = race.get(participant, dns)
+            if isinstance(result, int):
+                total += result
+            elif isinstance(result, str) and result in ('DSQ', 'DNF'):
+                total += dsq
         totals[participant] = total
     return totals
 
@@ -147,7 +153,7 @@ async def on_reaction_add(reaction, user):
         print(f"unknown reaction {reaction.emoji}")
         return
 
-    if "**Ranking:**" in reaction.message.content:
+    if "Ranking:" in reaction.message.content:
         new_race = parse_ranking(reaction.message.content)
         if new_race:
             global all_races, race_table
