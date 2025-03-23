@@ -32,3 +32,28 @@ def test_calculate_total():
         'E': 19,    # DNS + 3 + DNS
         'K': 15,    # DSQ (5) + DNS + 2
     }
+
+def test_render_table_image():
+    import pandas as pd
+    from main import render_table_image
+    # Create the example race table DataFrame with sample data.
+    df = pd.DataFrame({
+        "Name": ["Some Player", "Cool Guy", "AnotherPlayer", "Чемпион", "水手", "船乗り (ふなのり) "],
+        "1": [2, 5, 4, 3, 1, 6],
+        "2": [1, 2, 3, 4, "DNS", 5],
+        "3": [1, 2, 3, 4, "DNS", 5],
+        "Total": [4, 9, 10, 11, 15, 16]
+    })
+    # Render the table image which should now include:
+    #   - A new numbering column on the left (with an empty header).
+    #   - Slightly increased row height.
+    #   - Reduced width for "Race" and "Total" columns.
+    #   - Left-aligned text in the first two columns.
+    #   - A light lime (#CCFF99) background for odd rows.
+    buf = render_table_image(df)
+    data = buf.getvalue()
+    # Save the PNG image to a file for inspection.
+    with open("race_table.png", "wb") as f:
+        f.write(data)
+    # Assert that the image begins with the PNG signature.
+    assert data.startswith(b'\x89PNG\r\n\x1a\n')

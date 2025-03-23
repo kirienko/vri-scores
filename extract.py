@@ -91,7 +91,7 @@ def preprocess_image_from_bytes(image_bytes):
     img = img.filter(ImageFilter.SHARPEN)
     return img
 
-def extract_rankings(image_paths):
+def extract_rankings(image_paths: list[str]) -> list:
     """
     Extract rankings from a list of image file paths.
     Useful for command-line usage.

@@ -1,9 +1,10 @@
 import aiohttp
 import discord
 import pandas as pd
+import matplotlib.pyplot as plt
+from io import BytesIO
 
 from extract import extract_rankings_from_bytes
-from collections import defaultdict
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -18,7 +19,7 @@ async def on_message(message):
 
     if message.content.strip() == "!reset":
         global race_table
-        race_table = pd.DataFrame(columns=["Participant", "Total"])
+        race_table = pd.DataFrame(columns=["Name", "Total"])
         race_table.index = race_table.index + 1
         await message.reply("Race table has been reset.")
         return
@@ -40,9 +41,11 @@ async def on_message(message):
                 rankings_all.update(ranking)  # Assuming no rank conflicts
 
             if rankings_all:
-                sorted_ranks = sorted(rankings_all.keys())
+                int_keys = sorted([k for k in rankings_all if isinstance(k, int)])
+                str_keys = [k for k in rankings_all if isinstance(k, str)]
+                sorted_ranks = int_keys + str_keys
                 result = "\n".join(f"{rank} {rankings_all[rank]}" for rank in sorted_ranks)
-                await message.reply(f"**Ranking:**\n{result}")
+                await message.reply(f"Ranking:\n{result}")
             else:
                 await message.reply("No rankings detected.")
 
@@ -65,7 +68,7 @@ emoji_to_int = {
     "🔟": 10,
 }
 
-race_table = pd.DataFrame(columns=["Participant", "Total"])
+race_table = pd.DataFrame(columns=["Name", "Total"])
 # reset the index and add 1 to each value
 race_table.index = race_table.index + 1
 
@@ -92,7 +95,10 @@ def parse_ranking(message_content: str) -> dict:
         if len(parts) < 2:
             continue
         try:
-            pos = int(parts[0])
+            if parts[0] in ('DSQ', 'DNF'):
+                pos = parts[0]
+            else:
+                pos = int(parts[0])
             participant = parts[1].strip()
             ranking[participant] = pos
         except ValueError:
@@ -127,7 +133,7 @@ def calculate_total(all_races: dict) -> dict:
 def build_race_table(all_races: dict) -> pd.DataFrame:
     """
     Build a race table DataFrame from all_races and calculated totals.
-    The DataFrame has the first column "Participant" (ordered by total score ascending),
+    The DataFrame has the first column "Name" (ordered by total score ascending),
     followed by race columns (sorted numerically), and the last column "Total".
     If a participant did not take part in a race, the cell contains "DNS".
     """
@@ -138,13 +144,71 @@ def build_race_table(all_races: dict) -> pd.DataFrame:
     race_columns = sorted(all_races.keys())
     rows = []
     for p in participants:
-        row = {"Participant": p}
+        row = {"Name": p}
         for race in race_columns:
             # Use the rank from the race if present, otherwise "DNS"
             row[str(race)] = all_races[race].get(p, "DNS")
         row["Total"] = totals[p]
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def render_table_image(df: pd.DataFrame) -> BytesIO:
+    """
+    Render a pandas DataFrame as a PNG image with minimized whitespace.
+    """
+    # Set font family to support Chinese and Japanese characters
+    plt.rcParams['font.family'] = 'Noto Sans CJK JP'
+    df_copy = df.copy()
+    # Insert numbering column at the beginning.
+    df_copy.insert(0, "Rank", range(1, len(df_copy) + 1))
+
+    new_columns = []
+    for col in df_copy.columns:
+        if col.isdigit():
+            new_columns.append(f"Race {col}")
+        else:
+            new_columns.append(col)
+    df_copy.columns = new_columns
+
+    # Increase row height by ~10%
+    fig, ax = plt.subplots(figsize=(len(df_copy.columns) * 2, len(df_copy) * 0.8 * 1.1))
+    ax.axis('tight')
+    ax.axis('off')
+
+    tbl = ax.table(cellText=df_copy.values, colLabels=df_copy.columns, loc='center', cellLoc='center')
+    tbl.auto_set_font_size(False)
+    tbl.auto_set_column_width(col=list(range(len(df_copy.columns))))
+    tbl.set_fontsize(10)
+
+    # Left-align the first two columns, center-align the rest.
+    for i in range(1, len(df_copy) + 1):
+        tbl[(i, 0)].set_text_props(ha='center')  # First column: numbering
+        if len(df_copy.columns) > 1:
+            tbl[(i, 1)].set_text_props(ha='left')  # Second column: "Name"
+    last_col = len(df_copy.columns) - 1
+    for i in range(len(df_copy) + 1):
+        tbl[(i, last_col)].get_text().set_weight('bold')
+
+    # Apply background color to odd rows (1-indexed)
+    for i in range(1, len(df_copy) + 1):
+        if i % 2 == 1:
+            for j in range(len(df_copy.columns)):
+                tbl[(i, j)].set_facecolor("#CCFF99")
+    for cell in tbl.get_celld().values():
+        cell.set_linewidth(0)
+
+    # Ensure the table is drawn so we can compute its bounding box
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    bbox = tbl.get_window_extent(renderer).transformed(fig.dpi_scale_trans.inverted())
+
+    buf = BytesIO()
+    plt.savefig(buf, format='png', bbox_inches=bbox, pad_inches=0)
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
 
 @client.event
 async def on_reaction_add(reaction, user):
@@ -165,8 +229,8 @@ async def on_reaction_add(reaction, user):
 
             print("Updated race table:")
             print(race_table)
-            table_md = race_table.to_string()
-            await reaction.message.reply(f"**Overall:**\n{table_md}")
+            buf = render_table_image(race_table)
+            await reaction.message.reply(file=discord.File(buf, filename="race_table.png"))
         else:
             print("No rankings detected in message.")
     else:
