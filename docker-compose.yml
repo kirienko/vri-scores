@@ -1,0 +1,7 @@
+version: '3.9'
+
+services:
+  vri-scores-bot:
+    build: .
+    container_name: vri-scores-bot
+    restart: always
