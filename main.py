@@ -21,11 +21,11 @@ async def on_message(message):
         if message.guild is None:
             await message.reply("Reset command only works in a guild.")
             return
-        guild_id = message.guild.id
-        guild_race_tables[guild_id] = pd.DataFrame(columns=["Name", "Total"])
-        guild_race_tables[guild_id].index = guild_race_tables[guild_id].index + 1
-        guild_all_races[guild_id] = {}
-        await message.reply("Race table has been reset.")
+        channel_key = (message.guild.id, message.channel.id)
+        guild_race_tables[channel_key] = pd.DataFrame(columns=["Name", "Total"])
+        guild_race_tables[channel_key].index = guild_race_tables[channel_key].index + 1
+        guild_all_races[channel_key] = {}
+        await message.reply("Race table has been reset for this channel.")
         return
 
     # If the message has attachments
@@ -221,19 +221,19 @@ async def on_reaction_add(reaction, user):
     if "Ranking:" in reaction.message.content:
         if reaction.message.guild is None:
             return
-        guild_id = reaction.message.guild.id
+        channel_key = (reaction.message.guild.id, reaction.message.channel.id)
         new_race = parse_ranking(reaction.message.content)
         if new_race:
-            if guild_id not in guild_all_races:
-                guild_all_races[guild_id] = {}
+            if channel_key not in guild_all_races:
+                guild_all_races[channel_key] = {}
             # Store the current race using the emoji value as the key
-            guild_all_races[guild_id][race_number] = new_race
+            guild_all_races[channel_key][race_number] = new_race
 
-            # Build the race table from all stored races for this guild.
-            race_table = build_race_table(guild_all_races[guild_id])
-            guild_race_tables[guild_id] = race_table
+            # Build the race table from all stored races for this channel.
+            race_table = build_race_table(guild_all_races[channel_key])
+            guild_race_tables[channel_key] = race_table
 
-            print(f"Updated race table for guild: {reaction.message.guild.name} ({guild_id})")
+            print(f"Updated race table for channel: {reaction.message.guild.name} #{reaction.message.channel.name} ({channel_key})")
             print(race_table)
             buf = render_table_image(race_table)
             await reaction.message.reply(file=discord.File(buf, filename="race_table.png"))
