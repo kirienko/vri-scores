@@ -18,9 +18,13 @@ async def on_message(message):
         return
 
     if message.content.strip() == "!reset":
-        global race_table
-        race_table = pd.DataFrame(columns=["Name", "Total"])
-        race_table.index = race_table.index + 1
+        if message.guild is None:
+            await message.reply("Reset command only works in a guild.")
+            return
+        guild_id = message.guild.id
+        guild_race_tables[guild_id] = pd.DataFrame(columns=["Name", "Total"])
+        guild_race_tables[guild_id].index = guild_race_tables[guild_id].index + 1
+        guild_all_races[guild_id] = {}
         await message.reply("Race table has been reset.")
         return
 
@@ -68,11 +72,8 @@ emoji_to_int = {
     "🔟": 10,
 }
 
-race_table = pd.DataFrame(columns=["Name", "Total"])
-# reset the index and add 1 to each value
-race_table.index = race_table.index + 1
-
-all_races = {}
+guild_race_tables = {}
+guild_all_races = {}
 
 def parse_ranking(message_content: str) -> dict:
     """
@@ -218,16 +219,21 @@ async def on_reaction_add(reaction, user):
         return
 
     if "Ranking:" in reaction.message.content:
+        if reaction.message.guild is None:
+            return
+        guild_id = reaction.message.guild.id
         new_race = parse_ranking(reaction.message.content)
         if new_race:
-            global all_races, race_table
+            if guild_id not in guild_all_races:
+                guild_all_races[guild_id] = {}
             # Store the current race using the emoji value as the key
-            all_races[race_number] = new_race
+            guild_all_races[guild_id][race_number] = new_race
 
-            # Build the race table from all stored races.
-            race_table = build_race_table(all_races)
+            # Build the race table from all stored races for this guild.
+            race_table = build_race_table(guild_all_races[guild_id])
+            guild_race_tables[guild_id] = race_table
 
-            print("Updated race table:")
+            print(f"Updated race table for guild: {reaction.message.guild.name} ({guild_id})")
             print(race_table)
             buf = render_table_image(race_table)
             await reaction.message.reply(file=discord.File(buf, filename="race_table.png"))
