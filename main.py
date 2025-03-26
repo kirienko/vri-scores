@@ -4,6 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from io import BytesIO
 
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 from extract import extract_rankings_from_bytes
 
 intents = discord.Intents.default()
@@ -25,6 +27,7 @@ async def on_message(message):
         guild_race_tables[channel_key] = pd.DataFrame(columns=["Name", "Total"])
         guild_race_tables[channel_key].index = guild_race_tables[channel_key].index + 1
         guild_all_races[channel_key] = {}
+        logging.info(f"Race table reset for channel: {message.guild.name} #{message.channel.name}")
         await message.reply("Race table has been reset for this channel.")
         return
 
@@ -57,7 +60,7 @@ with open("token.txt", "r") as f:
     token = f.read().strip()
 
 
-# Mapping for digit emoji (and optionally the "ten" emoji)
+# Mapping for digit emoji
 emoji_to_int = {
     "0️⃣": 0,
     "1️⃣": 1,
@@ -215,7 +218,7 @@ def render_table_image(df: pd.DataFrame) -> BytesIO:
 async def on_reaction_add(reaction, user):
     race_number = emoji_to_int.get(reaction.emoji)
     if race_number is None:
-        print(f"unknown reaction {reaction.emoji}")
+        logging.info(f"unknown reaction {reaction.emoji}")
         return
 
     if "Ranking:" in reaction.message.content:
@@ -233,14 +236,14 @@ async def on_reaction_add(reaction, user):
             race_table = build_race_table(guild_all_races[channel_key])
             guild_race_tables[channel_key] = race_table
 
-            print(f"Updated race table for channel: {reaction.message.guild.name} #{reaction.message.channel.name} ({channel_key})")
-            print(race_table)
+            logging.info(f"Updated race table for channel: {reaction.message.guild.name} #{reaction.message.channel.name} ({channel_key})")
+            logging.info(f"Race table:\n{race_table}")
             buf = render_table_image(race_table)
             await reaction.message.reply(file=discord.File(buf, filename="race_table.png"))
         else:
-            print("No rankings detected in message.")
+            logging.info("No rankings detected in message.")
     else:
-        print("Message does not contain rankings.")
+        logging.info("Message does not contain rankings.")
 
 
 if __name__ == '__main__':
