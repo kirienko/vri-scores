@@ -54,8 +54,8 @@ async def on_message(message):
                 result = "\n".join(f"{rank} {rankings_all[rank]}" for rank in sorted_ranks)
                 await message.reply(f"Ranking:\n{result}")
             else:
-                await message.reply("No rankings detected.")
-
+                # await message.reply("No rankings detected.")
+                pass
 with open("token.txt", "r") as f:
     token = f.read().strip()
 
