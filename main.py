@@ -77,6 +77,8 @@ emoji_to_int = {
 
 guild_race_tables = {}
 guild_all_races = {}
+# Stores {channel_key: {original_message_id: (bot_reply_id, race_number)}}
+guild_reply_maps = {}
 
 def parse_ranking(message_content: str) -> dict:
     """
@@ -239,11 +241,61 @@ async def on_reaction_add(reaction, user):
             logging.info(f"Updated race table for channel: {reaction.message.guild.name} #{reaction.message.channel.name} ({channel_key})")
             logging.info(f"Race table:\n{race_table}")
             buf = render_table_image(race_table)
-            await reaction.message.reply(file=discord.File(buf, filename="race_table.png"))
+            # Send the reply and store the message IDs for potential future edits
+            sent_message = await reaction.message.reply(file=discord.File(buf, filename="race_table.png"))
+            guild_reply_maps.setdefault(channel_key, {})[reaction.message.id] = (sent_message.id, race_number)
+            logging.info(f"Stored reply map for message {reaction.message.id} -> {sent_message.id} (Race {race_number})")
         else:
             logging.info("No rankings detected in message.")
     else:
         logging.info("Message does not contain rankings.")
+
+
+@client.event
+async def on_message_edit(before, after):
+    # Ignore edits from bots or DMs
+    if after.author.bot or after.guild is None:
+        return
+
+    channel_key = (after.guild.id, after.channel.id)
+
+    # Check if this message is one we've replied to with a race table
+    if channel_key in guild_reply_maps and after.id in guild_reply_maps[channel_key]:
+        bot_reply_id, race_number = guild_reply_maps[channel_key][after.id]
+        logging.info(f"Edited message {after.id} corresponds to race {race_number} and bot reply {bot_reply_id}")
+
+        # Re-parse the rankings from the edited message
+        new_race = parse_ranking(after.content)
+
+        # Update the race data
+        if channel_key in guild_all_races and race_number in guild_all_races[channel_key]:
+            guild_all_races[channel_key][race_number] = new_race
+            logging.info(f"Updated race data for race {race_number} in channel {channel_key} due to message edit.")
+
+            # Rebuild the race table
+            race_table = build_race_table(guild_all_races[channel_key])
+            guild_race_tables[channel_key] = race_table # Update the stored table as well
+            logging.info(f"Rebuilt race table after edit:\n{race_table}")
+
+            # Render the new table image
+            buf = render_table_image(race_table)
+            new_file = discord.File(buf, filename="race_table.png")
+
+            # Try to find and edit the original bot reply
+            try:
+                bot_message = await after.channel.fetch_message(bot_reply_id)
+                await bot_message.edit(content=None, attachments=[new_file]) # Use attachments for files in edit
+                logging.info(f"Successfully edited bot message {bot_reply_id} with updated table.")
+            except discord.NotFound:
+                logging.warning(f"Could not find original bot message {bot_reply_id} to edit. It might have been deleted.")
+                # Optionally, post a new reply as a fallback
+                # await after.reply(file=new_file)
+            except discord.Forbidden:
+                logging.error(f"Bot lacks permissions to edit message {bot_reply_id}.")
+            except Exception as e:
+                logging.error(f"Failed to edit bot message {bot_reply_id}: {e}")
+        else:
+            logging.warning(f"Race data for race {race_number} not found for channel {channel_key} during edit handling.")
 
 
 if __name__ == '__main__':
