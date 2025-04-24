@@ -9,8 +9,10 @@ A tool to quickly extract Virtual Regatta Inshore race results from screenshots
 - **Emoji Reactions:** Uses number emojis (e.g., 1️⃣, 2️⃣) to label races.
 - **Total Score Calculation:** Aggregates scores across races, handling `DSQ`, `DNF`, and `DNS`. 
   Low point scoring system (see the Rule `A4`).
-- **Reset Command:** Type `!reset` to clear the stored race table.
-- **Fast and Responsive:** Fast extraction of race results with a final aggregated table display upon request.
+- **Reset Command:** Type `!reset` to clear the stored race table and remove the current table message.
+- **Single Table Display:** Only the latest generated race table is kept in the channel; previous tables are automatically deleted.
+- **Reaction-Based Updates:** Updates to the race table occur when reacting to a ranking message with a number emoji. Editing a ranking message *does not* automatically update the table; you must re-react.
+- **Fast and Responsive:** Fast extraction of race results with a final aggregated table display.
 
 ### Example of ranking from a screenshot: 
 ![](ranking.png)

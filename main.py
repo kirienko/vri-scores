@@ -24,9 +24,27 @@ async def on_message(message):
             await message.reply("Reset command only works in a guild.")
             return
         channel_key = (message.guild.id, message.channel.id)
+        # Reset data structures
         guild_race_tables[channel_key] = pd.DataFrame(columns=["Name", "Total"])
         guild_race_tables[channel_key].index = guild_race_tables[channel_key].index + 1
         guild_all_races[channel_key] = {}
+
+        # Attempt to delete the previous table message
+        if channel_key in guild_latest_table_message_id:
+            try:
+                old_message_id = guild_latest_table_message_id[channel_key]
+                old_message = await message.channel.fetch_message(old_message_id)
+                await old_message.delete()
+                logging.info(f"Deleted previous race table message {old_message_id} for channel {channel_key}")
+                del guild_latest_table_message_id[channel_key] # Remove from tracking
+            except discord.NotFound:
+                logging.warning(f"Previous race table message {old_message_id} not found for channel {channel_key}, might have been deleted already.")
+                del guild_latest_table_message_id[channel_key] # Remove from tracking even if not found
+            except discord.Forbidden:
+                logging.error(f"Bot lacks permissions to delete message {old_message_id} in channel {channel_key}.")
+            except Exception as e:
+                logging.error(f"Failed to delete previous race table message {old_message_id}: {e}")
+
         logging.info(f"Race table reset for channel: {message.guild.name} #{message.channel.name}")
         await message.reply("Race table has been reset for this channel.")
         return
@@ -77,8 +95,8 @@ emoji_to_int = {
 
 guild_race_tables = {}
 guild_all_races = {}
-# Stores {channel_key: {original_message_id: (bot_reply_id, race_number)}}
-guild_reply_maps = {}
+# Stores {channel_key: latest_bot_table_message_id}
+guild_latest_table_message_id = {}
 
 def parse_ranking(message_content: str) -> dict:
     """
@@ -241,62 +259,33 @@ async def on_reaction_add(reaction, user):
             logging.info(f"Updated race table for channel: {reaction.message.guild.name} #{reaction.message.channel.name} ({channel_key})")
             logging.info(f"Race table:\n{race_table}")
             buf = render_table_image(race_table)
-            # Send the reply and store the message IDs for potential future edits
+
+            # Attempt to delete the previous table message before sending a new one
+            if channel_key in guild_latest_table_message_id:
+                try:
+                    old_message_id = guild_latest_table_message_id[channel_key]
+                    old_message = await reaction.message.channel.fetch_message(old_message_id)
+                    await old_message.delete()
+                    logging.info(f"Deleted previous race table message {old_message_id} for channel {channel_key}")
+                except discord.NotFound:
+                    logging.warning(f"Previous race table message {old_message_id} not found for channel {channel_key}, might have been deleted already.")
+                except discord.Forbidden:
+                    logging.error(f"Bot lacks permissions to delete message {old_message_id} in channel {channel_key}.")
+                except Exception as e:
+                    logging.error(f"Failed to delete previous race table message {old_message_id}: {e}")
+
+            # Send the new table message
             sent_message = await reaction.message.reply(file=discord.File(buf, filename="race_table.png"))
-            guild_reply_maps.setdefault(channel_key, {})[reaction.message.id] = (sent_message.id, race_number)
-            logging.info(f"Stored reply map for message {reaction.message.id} -> {sent_message.id} (Race {race_number})")
+            # Store the ID of the newly sent message
+            guild_latest_table_message_id[channel_key] = sent_message.id
+            logging.info(f"Posted new race table message {sent_message.id} for channel {channel_key}")
         else:
             logging.info("No rankings detected in message.")
     else:
         logging.info("Message does not contain rankings.")
 
-
-@client.event
-async def on_message_edit(before, after):
-    # Ignore edits from bots or DMs
-    if after.author.bot or after.guild is None:
-        return
-
-    channel_key = (after.guild.id, after.channel.id)
-
-    # Check if this message is one we've replied to with a race table
-    if channel_key in guild_reply_maps and after.id in guild_reply_maps[channel_key]:
-        bot_reply_id, race_number = guild_reply_maps[channel_key][after.id]
-        logging.info(f"Edited message {after.id} corresponds to race {race_number} and bot reply {bot_reply_id}")
-
-        # Re-parse the rankings from the edited message
-        new_race = parse_ranking(after.content)
-
-        # Update the race data
-        if channel_key in guild_all_races and race_number in guild_all_races[channel_key]:
-            guild_all_races[channel_key][race_number] = new_race
-            logging.info(f"Updated race data for race {race_number} in channel {channel_key} due to message edit.")
-
-            # Rebuild the race table
-            race_table = build_race_table(guild_all_races[channel_key])
-            guild_race_tables[channel_key] = race_table # Update the stored table as well
-            logging.info(f"Rebuilt race table after edit:\n{race_table}")
-
-            # Render the new table image
-            buf = render_table_image(race_table)
-            new_file = discord.File(buf, filename="race_table.png")
-
-            # Try to find and edit the original bot reply
-            try:
-                bot_message = await after.channel.fetch_message(bot_reply_id)
-                await bot_message.edit(content=None, attachments=[new_file]) # Use attachments for files in edit
-                logging.info(f"Successfully edited bot message {bot_reply_id} with updated table.")
-            except discord.NotFound:
-                logging.warning(f"Could not find original bot message {bot_reply_id} to edit. It might have been deleted.")
-                # Optionally, post a new reply as a fallback
-                # await after.reply(file=new_file)
-            except discord.Forbidden:
-                logging.error(f"Bot lacks permissions to edit message {bot_reply_id}.")
-            except Exception as e:
-                logging.error(f"Failed to edit bot message {bot_reply_id}: {e}")
-        else:
-            logging.warning(f"Race data for race {race_number} not found for channel {channel_key} during edit handling.")
-
+# Removed on_message_edit handler as it's incompatible with the single-table approach.
+# Users must re-react to edited messages to update the table.
 
 if __name__ == '__main__':
     client.run(token)
