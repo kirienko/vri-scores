@@ -63,16 +63,33 @@ async def on_message(message):
             rankings_all = {}
             for img_bytes in images:
                 ranking = extract_rankings_from_bytes(img_bytes)
-                rankings_all.update(ranking)  # Assuming no rank conflicts
+                rankings_all.update(ranking)
 
             if rankings_all:
-                int_keys = sorted([k for k in rankings_all if isinstance(k, int)])
-                str_keys = [k for k in rankings_all if isinstance(k, str)]
-                sorted_ranks = int_keys + str_keys
-                result = "\n".join(f"{rank} {rankings_all[rank]}" for rank in sorted_ranks)
+                # --- Start: Fill gaps with "???" ---
+                int_ranks = {k: v for k, v in rankings_all.items() if isinstance(k, int)}
+                str_ranks = {k: v for k, v in rankings_all.items() if isinstance(k, str)}
+
+                result_lines = []
+                if int_ranks:
+                    max_rank = max(int_ranks.keys())
+                    # Ensure all ranks from 1 to max_rank are present
+                    for i in range(1, max_rank + 1):
+                        username = int_ranks.get(i, "???") # Use "???" if rank is missing
+                        result_lines.append(f"{i} {username}")
+
+                # Append string ranks (DSQ, DNF) sorted alphabetically
+                for rank in sorted(str_ranks.keys()):
+                    result_lines.append(f"{rank} {str_ranks[rank]}")
+
+                result = "\n".join(result_lines)
+                # --- End: Fill gaps with "???" ---
+
                 await message.reply(f"Ranking:\n{result}")
             else:
-                # await message.reply("No rankings detected.")
+                logging.info(f"No rankings detected in attachments for message {message.id}")
+                # Optionally reply if no rankings found, currently silent
+                # await message.reply("No rankings detected in the image(s).")
                 pass
 with open("token.txt", "r") as f:
     token = f.read().strip()

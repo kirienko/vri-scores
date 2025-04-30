@@ -102,8 +102,24 @@ def extract_rankings(image_paths: list[str]) -> list:
         text = pytesseract.image_to_string(img)
         extracted = parse_rankings_from_text(text)
         combined_rankings.update(extracted)
-    # Build a sorted list of strings
-    return [f"{rank} {combined_rankings[rank]}" for rank in sorted(combined_rankings.keys())]
+
+    # Separate integer and string keys
+    int_ranks = {k: v for k, v in combined_rankings.items() if isinstance(k, int)}
+    str_ranks = {k: v for k, v in combined_rankings.items() if isinstance(k, str)}
+
+    result_lines = []
+    if int_ranks:
+        max_rank = max(int_ranks.keys())
+        # Ensure all ranks from 1 to max_rank are present
+        for i in range(1, max_rank + 1):
+            username = int_ranks.get(i, "???") # Use "???" if rank is missing
+            result_lines.append(f"{i} {username}")
+
+    # Append string ranks (DSQ, DNF) sorted alphabetically
+    for rank in sorted(str_ranks.keys()):
+        result_lines.append(f"{rank} {str_ranks[rank]}")
+
+    return result_lines
 
 if __name__ == "__main__":
     image_paths = sys.argv[1:]
