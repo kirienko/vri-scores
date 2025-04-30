@@ -7,6 +7,7 @@ from io import BytesIO
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 from extract import extract_rankings_from_bytes
+from rapidfuzz.distance import Levenshtein # Import Levenshtein distance function
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -28,25 +29,14 @@ async def on_message(message):
         guild_race_tables[channel_key] = pd.DataFrame(columns=["Name", "Total"])
         guild_race_tables[channel_key].index = guild_race_tables[channel_key].index + 1
         guild_all_races[channel_key] = {}
-
-        # Attempt to delete the previous table message
+        # Also clear the reference to the last message ID for this channel,
+        # so the *next* table generated doesn't delete the one left behind by reset.
         if channel_key in guild_latest_table_message_id:
-            try:
-                old_message_id = guild_latest_table_message_id[channel_key]
-                old_message = await message.channel.fetch_message(old_message_id)
-                await old_message.delete()
-                logging.info(f"Deleted previous race table message {old_message_id} for channel {channel_key}")
-                del guild_latest_table_message_id[channel_key] # Remove from tracking
-            except discord.NotFound:
-                logging.warning(f"Previous race table message {old_message_id} not found for channel {channel_key}, might have been deleted already.")
-                del guild_latest_table_message_id[channel_key] # Remove from tracking even if not found
-            except discord.Forbidden:
-                logging.error(f"Bot lacks permissions to delete message {old_message_id} in channel {channel_key}.")
-            except Exception as e:
-                logging.error(f"Failed to delete previous race table message {old_message_id}: {e}")
+            del guild_latest_table_message_id[channel_key]
+            logging.info(f"Cleared last table message reference for channel {channel_key} after reset.")
 
         logging.info(f"Race table reset for channel: {message.guild.name} #{message.channel.name}")
-        await message.reply("Race table has been reset for this channel.")
+        await message.reply("Race table has been reset for this channel. The previous table message will remain.")
         return
 
     # If the message has attachments
@@ -261,16 +251,56 @@ async def on_reaction_add(reaction, user):
     if "Ranking:" in reaction.message.content:
         if reaction.message.guild is None:
             return
+        # Correctly access channel ID via reaction.message.channel.id
         channel_key = (reaction.message.guild.id, reaction.message.channel.id)
-        new_race = parse_ranking(reaction.message.content)
-        if new_race:
+        new_race_raw = parse_ranking(reaction.message.content)
+
+        if new_race_raw:
+            # Ensure the channel data structure exists
             if channel_key not in guild_all_races:
                 guild_all_races[channel_key] = {}
-            # Store the current race using the emoji value as the key
-            guild_all_races[channel_key][race_number] = new_race
 
-            # Build the race table from all stored races for this channel.
+            # --- Fuzzy Name Matching Logic ---
+            max_distance = 2 # Max Levenshtein distance to consider a match
+            processed_race = {} # Store results for this race after matching
+
+            # Get all unique names from previous races in this channel
+            existing_names = set()
+            for race_data in guild_all_races.get(channel_key, {}).values():
+                existing_names.update(race_data.keys())
+
+            logging.debug(f"Existing names for fuzzy matching: {existing_names}")
+
+            for raw_name, rank in new_race_raw.items():
+                final_name = raw_name # Default to the name as parsed
+                best_match_distance = max_distance + 1 # Initialize distance beyond threshold
+
+                # Find the closest existing name within the threshold
+                matched_existing_name = None
+                for existing_name in existing_names:
+                    distance = Levenshtein.distance(raw_name, existing_name)
+                    if distance <= max_distance and distance < best_match_distance:
+                        best_match_distance = distance
+                        matched_existing_name = existing_name
+                        # Optimization: If distance is 0 (exact match), no need to check further
+                        if distance == 0:
+                            break
+
+                if matched_existing_name:
+                    final_name = matched_existing_name # Use the matched existing name
+                    if raw_name != final_name: # Log only if a change occurred
+                        logging.info(f"Fuzzy matched new name '{raw_name}' to existing '{final_name}' (distance: {best_match_distance}) for race {race_number}")
+
+                processed_race[final_name] = rank
+            # --- End Fuzzy Name Matching Logic ---
+
+            # Store the processed race data (with potentially corrected names)
+            guild_all_races[channel_key][race_number] = processed_race
+
+            # Build the race table from all stored races (including the newly processed one)
             race_table = build_race_table(guild_all_races[channel_key])
+            guild_race_tables[channel_key] = race_table
+
             guild_race_tables[channel_key] = race_table
 
             logging.info(f"Updated race table for channel: {reaction.message.guild.name} #{reaction.message.channel.name} ({channel_key})")
@@ -281,6 +311,7 @@ async def on_reaction_add(reaction, user):
             if channel_key in guild_latest_table_message_id:
                 try:
                     old_message_id = guild_latest_table_message_id[channel_key]
+                    # Fetch the message object using the channel from the reaction's message
                     old_message = await reaction.message.channel.fetch_message(old_message_id)
                     await old_message.delete()
                     logging.info(f"Deleted previous race table message {old_message_id} for channel {channel_key}")
@@ -290,6 +321,9 @@ async def on_reaction_add(reaction, user):
                     logging.error(f"Bot lacks permissions to delete message {old_message_id} in channel {channel_key}.")
                 except Exception as e:
                     logging.error(f"Failed to delete previous race table message {old_message_id}: {e}")
+                # Ensure the ID is removed from tracking even if deletion failed, to prevent repeated attempts
+                del guild_latest_table_message_id[channel_key]
+
 
             # Send the new table message
             sent_message = await reaction.message.reply(file=discord.File(buf, filename="race_table.png"))
