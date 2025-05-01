@@ -81,9 +81,6 @@ async def on_message(message):
                 # Optionally reply if no rankings found, currently silent
                 # await message.reply("No rankings detected in the image(s).")
                 pass
-with open("token.txt", "r") as f:
-    token = f.read().strip()
-
 
 # Mapping for digit emoji
 emoji_to_int = {
@@ -339,4 +336,7 @@ async def on_reaction_add(reaction, user):
 # Users must re-react to edited messages to update the table.
 
 if __name__ == '__main__':
+    with open("token.txt", "r") as f:
+        token = f.read().strip()
+
     client.run(token)
