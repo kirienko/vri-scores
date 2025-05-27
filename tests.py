@@ -1,4 +1,5 @@
 from main import calculate_total, parse_ranking
+from tie_break import sort_participants
 
 def test_parse_ranking():
     message = """'**Ranking:**
@@ -57,3 +58,38 @@ def test_render_table_image():
         f.write(data)
     # Assert that the image begins with the PNG signature.
     assert data.startswith(b'\x89PNG\r\n\x1a\n')
+
+
+def test_tie_break_two_boats_by_best_scores():
+    # Same totals (5) but A has the better single score (1 vs 2).
+    all_races = {
+        1: {'A': 1, 'B': 2},
+        2: {'A': 4, 'B': 3},
+    }
+    totals = calculate_total(all_races)
+    ordered = sort_participants(list(totals.keys()), all_races, totals)
+    assert ordered == ['A', 'B']          # A wins on A8.1
+
+
+def test_tie_break_two_boats_by_last_race():
+    # Same totals (3) and identical sorted score lists [1,2];
+    # tie should be decided by the last race: B (1) beats A (2).
+    all_races = {
+        1: {'A': 1, 'B': 2},
+        2: {'A': 2, 'B': 1},
+    }
+    totals = calculate_total(all_races)
+    ordered = sort_participants(list(totals.keys()), all_races, totals)
+    assert ordered == ['B', 'A']          # B wins on A8.2 (last race)
+
+
+def test_tie_break_three_boats():
+    # Three-way tie, resolved by scores in the last race (race 3).
+    all_races = {
+        1: {'A': 1, 'B': 2, 'C': 3},
+        2: {'A': 3, 'B': 1, 'C': 2},
+        3: {'A': 2, 'B': 3, 'C': 1},
+    }
+    totals = calculate_total(all_races)
+    ordered = sort_participants(list(totals.keys()), all_races, totals)
+    assert ordered == ['C', 'A', 'B']     # C(1) < A(2) < B(3) in last race

@@ -8,6 +8,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 from extract import extract_rankings_from_bytes
 from rapidfuzz.distance import Levenshtein # Import Levenshtein distance function
+from tie_break import sort_participants
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -166,8 +167,8 @@ def build_race_table(all_races: dict) -> pd.DataFrame:
     If a participant did not take part in a race, the cell contains "DNS".
     """
     totals = calculate_total(all_races)
-    # Order participants by ascending total score
-    participants = sorted(totals.keys(), key=lambda p: totals[p])
+    # Order participants by total score, breaking ties by A8 rules
+    participants = sort_participants(list(totals.keys()), all_races, totals)
     # Sort race columns numerically
     race_columns = sorted(all_races.keys())
     rows = []

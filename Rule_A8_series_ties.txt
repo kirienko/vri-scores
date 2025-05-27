@@ -1,0 +1,13 @@
+### A8 SERIES TIES
+
+**A8.1** If there is a series-score tie between two or more boats, each boat’s
+race scores shall be listed in order of best to worst, and at the first
+point(s) where there is a difference the tie shall be broken in favour
+of the boat(s) with the best score(s). No excluded scores shall be
+used.
+
+**A8.2** If a tie remains between two or more boats, they shall be ranked in
+order of their scores in the last race. Any remaining ties shall be
+broken by using the tied boats’ scores in the next-to-last race and so
+on until all ties are broken. These scores shall be used even if some
+of them are excluded scores.
