@@ -93,3 +93,52 @@ def test_tie_break_three_boats():
     totals = calculate_total(all_races)
     ordered = sort_participants(list(totals.keys()), all_races, totals)
     assert ordered == ['C', 'A', 'B']     # C(1) < A(2) < B(3) in last race
+
+
+def test_sort_participants_first_twenty_rows_from_scoreboard():
+    # The first 20 rows in the shared scoreboard (races 1-5).
+    # Each tuple: (rank, name, race scores for races 1..5, reported total from the table).
+    raw_rows = [
+        (1, "Foiled!", 1, 1, 2, 6, 6, 16),
+        (2, "Yokko", 2, 2, 1, 11, 11, 27),
+        (3, "kisPé", 3, 11, 8, 7, 8, 37),
+        (4, "GER-7", 4, 4, 7, 12, 12, 39),
+        (5, "Johannes Bahnsen", 5, 5, 4, 18, 15, 47),
+        (6, "Tobias_ARVO8", 6, 6, 6, 13, 16, 47),
+        (7, "Mats709", 7, 3, 5, 14, 19, 48),
+        (8, "TauMeister:de", 8, 7, 3, 5, 29, 52),
+        (9, "csero", 9, 13, 9, 8, 20, 59),
+        (10, "Sir Toby", 10, 9, 10, 17, 21, 67),
+        (11, "CNS_Franconia", 11, 12, 12, 24, 13, 72),
+        (12, "Swedesailor SWEO!", 12, 11, 14, 19, 16, 72),
+        (13, "Dr Krull", 13, 8, 13, 23, 20, 77),
+        (14, "Erzpirat", 14, 14, 11, 21, 17, 77),
+        (15, "???", 15, 15, 16, 16, 19, 81),  # names 15-20 illegible in the image
+        (16, "???", 16, 19, 20, 10, 18, 83),
+        (17, "???", 17, 16, 18, 20, 14, 85),
+        (18, "???", 18, 18, 19, 9, 25, 89),
+        (19, "???", 19, 17, 17, 22, 15, 90),
+        (20, "???", 20, 20, 21, 26, 12, 99),
+    ]
+
+    assert len(raw_rows) == 20
+    assert all(len(row) == 8 for row in raw_rows)
+
+    all_races = {race_no: {} for race_no in range(1, 6)}
+    participants_in_table_order = []
+    totals = {}
+
+    for rank, name, s1, s2, s3, s4, s5, expected_total in raw_rows:
+        scores = [s1, s2, s3, s4, s5]
+        assert sum(scores) == expected_total
+        participant_key = f"{rank}. {name}"
+        participants_in_table_order.append(participant_key)
+        totals[participant_key] = expected_total
+        for race_no, score in enumerate(scores, start=1):
+            all_races[race_no][participant_key] = score
+
+    # Shuffle the order to prove that the function sorts correctly.
+    shuffled_participants = list(reversed(participants_in_table_order))
+    ordered = sort_participants(shuffled_participants, all_races, totals)
+
+    assert ordered == participants_in_table_order
