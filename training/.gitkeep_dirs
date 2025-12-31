@@ -1,0 +1,8 @@
+# This file ensures training directories are created
+# You can delete this file once you have actual data
+
+screenshots/
+ground_truth/
+box_files/
+lstm_training/
+output/
