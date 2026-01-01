@@ -14,6 +14,15 @@ TRAINING_DATA_DIR="$(cd "$(dirname "$0")/../box_files" && pwd)"
 OUTPUT_DIR="$(cd "$(dirname "$0")/../lstm_training" && pwd)"
 FINAL_MODEL_DIR="$(cd "$(dirname "$0")/../output" && pwd)"
 
+# Check if using training split
+if [ -d "$(cd "$(dirname "$0")/../box_files_train" && pwd 2>/dev/null)" ]; then
+    TRAINING_DATA_DIR="$(cd "$(dirname "$0")/../box_files_train" && pwd)"
+    echo "✅ Using training split (box_files_train/)"
+else
+    echo "⚠️  No train/test split found, using all box files"
+    echo "   Recommendation: Run 00_split_dataset.py first for proper evaluation"
+fi
+
 # Create directories
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "$FINAL_MODEL_DIR"

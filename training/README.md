@@ -52,18 +52,48 @@ Content of `screenshot001.gt.txt`:
 14 - Erzpirat
 ```
 
-### Step 3: Generate Training Data
+### Step 3: Split Into Train/Test Sets ⚠️ CRITICAL
+Split your data to get realistic accuracy metrics.
+
+```bash
+python3 scripts/00_split_dataset.py
+```
+
+Creates training (80%) and test (20%) sets. See `BEST_PRACTICES.md` for why this matters!
+
+### Step 4: Generate Training Data
 Use the provided scripts to convert screenshots + ground truth into Tesseract training format.
 
-### Step 4: Train the Model
-Fine-tune the existing English model with your VRI-specific data.
+### Step 5: Train the Model
+Fine-tune the existing English model with your VRI-specific data (uses training set only).
 
-### Step 5: Test and Deploy
-Validate accuracy and integrate into the bot.
+### Step 6: Evaluate on Test Set
+Test on unseen data to get realistic accuracy predictions.
+
+### Step 7: Deploy
+Integrate validated model into the bot.
 
 ## Quick Start
 
-See `scripts/train.sh` for the automated training pipeline.
+```bash
+# 1. Annotate your screenshots
+python3 scripts/batch_annotate.py screenshots/
+
+# 2. Split dataset (train/test)
+python3 scripts/00_split_dataset.py
+
+# 3. Train model
+cd scripts/
+./00_quick_train.sh
+
+# 4. Evaluate on test set
+python3 05_evaluate_model.py ../screenshots_test/ ../ground_truth_test/
+
+# 5. Deploy if good
+sudo cp ../output/vri.traineddata /usr/share/tesseract-ocr/5/tessdata/
+```
+
+See `TRAINING_SUMMARY.md` for complete guide and `BEST_PRACTICES.md` for train/test split details.
 
 ## Expected Results
 

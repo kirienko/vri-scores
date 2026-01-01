@@ -16,7 +16,16 @@ MODEL_NAME="vri"
 BASE_MODEL="eng"
 OUTPUT_DIR="$(cd "$(dirname "$0")/../lstm_training" && pwd)"
 FINAL_DIR="$(cd "$(dirname "$0")/../output" && pwd)"
-GT_DIR="$(cd "$(dirname "$0")/../ground_truth" && pwd)"
+
+# Use training split if available, otherwise fall back to all ground truth
+if [ -d "$(cd "$(dirname "$0")/../ground_truth_train" && pwd 2>/dev/null)" ]; then
+    GT_DIR="$(cd "$(dirname "$0")/../ground_truth_train" && pwd)"
+    echo "✅ Using training split (ground_truth_train/)"
+else
+    GT_DIR="$(cd "$(dirname "$0")/../ground_truth" && pwd)"
+    echo "⚠️  No train/test split found, using all data from ground_truth/"
+    echo "   Recommendation: Run 00_split_dataset.py first for proper evaluation"
+fi
 
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "$FINAL_DIR"

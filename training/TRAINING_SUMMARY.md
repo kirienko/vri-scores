@@ -82,39 +82,53 @@ Just create `.gt.txt` files matching your screenshot names:
 ...
 ```
 
-### Step 3: Train the Model (10 min)
+### Step 3: Split Dataset - CRITICAL! (2 min)
 
 ```bash
 cd scripts/
 
+# Split into train (80%) and test (20%) sets
+python3 00_split_dataset.py
+
+# This creates:
+#   screenshots_train/      ← For training
+#   screenshots_test/       ← For evaluation (NEVER use in training!)
+#   ground_truth_train/
+#   ground_truth_test/
+
+# ⚠️ IMPORTANT: Test set = unseen data for realistic accuracy!
+```
+
+### Step 4: Train the Model (10 min)
+
+```bash
 # Quick method (synthetic training data)
 ./00_quick_train.sh
 
+# Automatically uses screenshots_train/ (not all screenshots!)
 # The script will:
-# ✓ Combine all ground truth files
+# ✓ Combine all ground truth files from TRAINING set
 # ✓ Generate synthetic training images
 # ✓ Extract base English model
 # ✓ Fine-tune with your VRI data
 # ✓ Output: ../output/vri.traineddata
 ```
 
-### Step 4: Test the Model (2 min)
+### Step 5: Evaluate on Test Set (2 min)
 
 ```bash
-# Split some screenshots for testing
-mkdir ../screenshots/test
-mv ../screenshots/example_001.png ../screenshots/test/
-
-# Test accuracy
-python3 04_test_model.py ../screenshots/test/ ../ground_truth/
+# Comprehensive evaluation on UNSEEN test data
+python3 05_evaluate_model.py ../screenshots_test/ ../ground_truth_test/
 
 # Output shows:
-# - Custom model accuracy
-# - Base model accuracy
-# - Improvement percentage
+# - Position detection accuracy (especially rank 11!)
+# - Name extraction accuracy
+# - Custom vs baseline comparison
+# - Problem case analysis
+# - Real-world performance estimate
 ```
 
-### Step 5: Deploy the Model
+### Step 6: Deploy the Model
 
 ```bash
 # For local testing:
@@ -152,19 +166,35 @@ python3 04_test_model.py ../screenshots/test/ ../ground_truth/
 
 ## Tips for Best Results
 
-### 1. Data Quality Matters Most
-- **Minimum:** 20 diverse screenshots
-- **Good:** 50-100 screenshots
-- **Excellent:** 200+ screenshots
+### 1. ALWAYS Use Train/Test Split! 🎯
+
+**This is the #1 most important practice!**
+
+```bash
+# WRONG - Testing on training data gives false accuracy
+❌ Train on 100 images, test on same 100 images → 99% accuracy
+   Deploy to production → only 70% real accuracy!
+
+# RIGHT - Testing on unseen data gives realistic accuracy
+✅ Train on 80 images, test on 20 held-out images → 85% accuracy
+   Deploy to production → 85% real accuracy!
+```
+
+See `BEST_PRACTICES.md` for detailed explanation.
+
+### 2. Data Quality Matters Most
+- **Minimum:** 50 diverse screenshots (20 for testing!)
+- **Good:** 100-200 screenshots
+- **Excellent:** 500+ screenshots
 - **Diversity:** Different race sizes, UI states, player names
 
-### 2. Perfect Ground Truth is Critical
+### 3. Perfect Ground Truth is Critical
 - Double-check for typos!
 - Match exact spacing and punctuation
 - Include special characters (:`_-.)
 - Don't guess - verify against screenshot
 
-### 3. Focus on Problem Cases
+### 4. Focus on Problem Cases
 Include screenshots where current OCR fails:
 - Rankings with "11" (the main issue!)
 - Multi-language player names
@@ -173,16 +203,18 @@ Include screenshots where current OCR fails:
 - Very long names
 - Crowded rankings (30+ players)
 
-### 4. Iterative Improvement
+### 5. Iterative Improvement
 
 ```bash
-# Cycle:
-1. Train with initial dataset
-2. Deploy and test on real Discord usage
-3. Save failed screenshots
-4. Add to training data
-5. Retrain monthly
-6. Version models: vri_v1, vri_v2, vri_v3...
+# Cycle (maintaining same test set):
+1. Split dataset ONCE (00_split_dataset.py)
+2. Train with initial training set
+3. Evaluate on test set (baseline: 85%)
+4. Deploy and collect production failures
+5. Add failures to TRAINING set only
+6. Retrain
+7. Re-evaluate on SAME test set (improved: 90%)
+8. Version models: vri_v1, vri_v2, vri_v3...
 ```
 
 ## Troubleshooting
